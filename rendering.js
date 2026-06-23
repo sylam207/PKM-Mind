@@ -327,21 +327,6 @@ function drawAll(state) {
 
   state.ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  const tagText = `Layout: ${state.layoutMode}`;
-  state.ctx.font = "700 12px Manrope";
-  const tagWidth = state.ctx.measureText(tagText).width + 18;
-  state.ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
-  state.ctx.strokeStyle = "rgba(99, 102, 241, 0.28)";
-  state.ctx.lineWidth = 1;
-  drawRoundedRectPath(state.ctx, 8, 8, tagWidth, 24, 12);
-  state.ctx.fill();
-  state.ctx.stroke();
-
-  state.ctx.fillStyle = "rgba(31, 41, 55, 0.85)";
-  state.ctx.textAlign = "left";
-  state.ctx.textBaseline = "alphabetic";
-  state.ctx.fillText(tagText, 17, 25);
-
   updateReorderButtons(state);
 
   return transitioning;

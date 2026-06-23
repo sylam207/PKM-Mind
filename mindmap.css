@@ -160,7 +160,6 @@ button[disabled] {
   box-shadow: none;
 }
 
-#addBtn,
 #centerBtn,
 #layoutBtn,
 #focusBtn,
@@ -171,7 +170,6 @@ button[disabled] {
   background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
 }
 
-#deleteBtn,
 #clearBtn {
   color: var(--danger);
   border-color: rgba(220, 38, 38, 0.22);
@@ -2076,3 +2074,260 @@ button[disabled] {
   box-shadow: none;
 }
 .rel-save-btn:hover { background: #1d4ed8; transform: none; box-shadow: none; }
+
+/* ── Relationship manage / edit views ───────────────────────────────────── */
+
+.rel-manage-view,
+.rel-edit-view {
+  display: flex;
+  flex-direction: column;
+}
+.rel-manage-view {
+  padding: 10px 14px 14px;
+  gap: 8px;
+}
+.rel-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.rel-manage-empty {
+  font-size: 12px;
+  color: var(--ink-2);
+  text-align: center;
+  padding: 16px 0 8px;
+}
+.rel-manage-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.rel-manage-item-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rel-manage-item-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rel-manage-item-dir {
+  font-size: 11px;
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+.rel-manage-item-edit {
+  padding: 3px 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 6px;
+  background: #eff6ff;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+.rel-manage-item-edit:hover { background: #dbeafe; transform: none; box-shadow: none; }
+.rel-manage-item-del {
+  padding: 3px 8px;
+  border: 1px solid rgba(220, 38, 38, 0.22);
+  border-radius: 6px;
+  background: #fff5f5;
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+.rel-manage-item-del:hover { background: #fee2e2; transform: none; box-shadow: none; }
+
+.rel-add-new-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  padding: 7px 14px;
+  border: 1.5px dashed rgba(37, 99, 235, 0.35);
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rel-add-new-btn:hover { background: rgba(37, 99, 235, 0.09); border-color: rgba(37, 99, 235, 0.6); transform: none; box-shadow: none; }
+
+.rel-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 10px 14px 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+  align-self: flex-start;
+}
+.rel-back-btn:hover { background: rgba(15, 23, 42, 0.06); color: var(--ink-1); transform: none; box-shadow: none; }
+
+/* ── Node context panel ──────────────────────────────────────────────────── */
+
+.ctx-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  flex-shrink: 0;
+  margin: 0 1px;
+}
+
+#nodeContextPanel {  position: fixed;
+  display: none;
+  align-items: center;
+  gap: 3px;
+  background: var(--surface-strong);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 4px 8px;
+  box-shadow: var(--shadow-md);
+  z-index: 40;
+  transform: translateX(-50%) translateY(-100%) translateY(-8px);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+#nodeContextPanel.visible {
+  display: flex;
+}
+
+#nodeContextPanel button {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 11px;
+  font-size: 11px;
+  gap: 5px;
+}
+
+#nodeContextPanel .button-label {
+  display: inline;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width 0.2s ease, opacity 0.18s ease;
+}
+
+#nodeContextPanel button:hover .button-label {
+  max-width: 80px;
+  opacity: 1;
+}
+
+#nodeContextPanel:has(button:hover) {
+  overflow: visible;
+}
+
+#addBtn {
+  color: var(--primary);
+  border-color: rgba(37, 99, 235, 0.25);
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+}
+
+#deleteBtn {
+  color: var(--danger);
+  border-color: rgba(220, 38, 38, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, #fff5f5 100%);
+}
+
+#nodeContextPanel button[data-tooltip] {
+  position: relative;
+}
+
+#nodeContextPanel button[data-tooltip]::after,
+#nodeContextPanel button[data-tooltip]::before {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+#nodeContextPanel button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translate(-50%, 6px);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 5px 9px;
+  box-shadow: var(--shadow-md);
+  z-index: 70;
+}
+
+#nodeContextPanel button[data-tooltip]::before {
+  content: "";
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translate(-50%, 6px);
+  border-width: 6px;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.92) transparent transparent transparent;
+  z-index: 69;
+}
+
+#nodeContextPanel button[data-tooltip]:hover::after,
+#nodeContextPanel button[data-tooltip]:hover::before {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+#attachBtn {
+  color: #0369a1;
+  border-color: rgba(3, 105, 161, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%);
+}
+
+#tagBtn {
+  color: #d97706;
+  border-color: rgba(217, 119, 6, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, #fffbeb 100%);
+}
+
+#noteBtn {
+  color: #059669;
+  border-color: rgba(5, 150, 105, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, #ecfdf5 100%);
+}
+
+#relLinkBtn {
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
+}

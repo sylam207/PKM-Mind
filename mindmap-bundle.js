@@ -187,7 +187,10 @@
       relLineMouseY: null,
       selectedRelLineId: null,
       draggingRelLabel: null,
+      draggingRelLine: null,
+      _relLineDragMoved: false,
       _relLabelRects: new Map(),
+      _relCtrlPtRects: new Map(),
       _relPanelOpts: null,
 
       savePartBtn: document.getElementById("savePartBtn"),
@@ -202,7 +205,8 @@
       toolbarMinBtn: document.getElementById("toolbarMinBtn"),
       toolbarRevealBtn: document.getElementById("toolbarRevealBtn"),
       newMapBtn: document.getElementById("newMapBtn"),
-      mapsBtn: document.getElementById("mapsBtn")
+      mapsBtn: document.getElementById("mapsBtn"),
+      nodeContextPanel: document.getElementById("nodeContextPanel")
     };
   }
 
@@ -351,7 +355,7 @@
 
   function updateDeleteButton(state) {
     const hasSelection = !!state.selectedNode;
-    state.deleteBtn.disabled = !hasSelection;
+    if (state.deleteBtn) state.deleteBtn.disabled = !hasSelection;
     if (state.focusBtn) state.focusBtn.disabled = !hasSelection;
     if (state.pinBtn) state.pinBtn.disabled = !hasSelection;
     if (state.collapseBtn) state.collapseBtn.disabled = !hasSelection || state.selectedNode.children.length === 0;
@@ -1176,6 +1180,7 @@
     if (!state.selectedNode || state.isDragging) {
       state.reorderUp.style.display = "none";
       state.reorderDown.style.display = "none";
+      if (state.nodeContextPanel) state.nodeContextPanel.classList.remove("visible");
       return;
     }
     const x =
@@ -1190,6 +1195,15 @@
     state.reorderUp.style.top = `${y}px`;
     state.reorderDown.style.left = `${x}px`;
     state.reorderDown.style.top = `${y + 20}px`;
+
+    // Position the node context panel centered above the selected node
+    if (state.nodeContextPanel) {
+      const nodeScreenX = state.selectedNode.x * state.viewScale + state.viewOffsetX + (state.selectedNode.width * state.viewScale) / 2;
+      const nodeScreenY = state.selectedNode.y * state.viewScale + state.viewOffsetY;
+      state.nodeContextPanel.style.left = `${nodeScreenX}px`;
+      state.nodeContextPanel.style.top = `${nodeScreenY}px`;
+      state.nodeContextPanel.classList.add("visible");
+    }
   }
 
   function drawAll(state) {
@@ -1412,19 +1426,6 @@
     }
 
     state.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const tagText = `Layout: ${state.layoutMode}`;
-    state.ctx.font = "700 12px Manrope";
-    const tagWidth = state.ctx.measureText(tagText).width + 18;
-    state.ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
-    state.ctx.strokeStyle = "rgba(99, 102, 241, 0.28)";
-    state.ctx.lineWidth = 1;
-    drawRoundedRectPath(state.ctx, 8, 8, tagWidth, 24, 12);
-    state.ctx.fill();
-    state.ctx.stroke();
-    state.ctx.fillStyle = "rgba(31, 41, 55, 0.85)";
-    state.ctx.textAlign = "left";
-    state.ctx.textBaseline = "alphabetic";
-    state.ctx.fillText(tagText, 17, 25);
 
     // Pick-mode banner
     if (state.relLinePickMode) {
@@ -2855,8 +2856,8 @@
     const ldx = tx - fx, ldy = ty - fy;
     const ldist = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
     const arcH = Math.min(ldist * 0.55, 280);
-    const cx = (fx + tx) / 2 + (ldy / ldist) * arcH;
-    const cy = (fy + ty) / 2 + (-ldx / ldist) * arcH;
+    const cx = (fx + tx) / 2 + (ldy / ldist) * arcH + (rl.cpOffsetX || 0);
+    const cy = (fy + ty) / 2 + (-ldx / ldist) * arcH + (rl.cpOffsetY || 0);
     return { fx, fy, cx, cy, tx, ty };
   }
 
@@ -2882,6 +2883,7 @@
   function drawRelLines(state) {
     if (!state.relLines || state.relLines.length === 0) return;
     state._relLabelRects.clear();
+    state._relCtrlPtRects.clear();
     const ctx = state.ctx;
     const ARROW = 10;
     for (const rl of state.relLines) {
@@ -2940,6 +2942,35 @@
         const HIT = 10;
         state._relLabelRects.set(rl.id, { x: lx - HIT, y: ly - HIT, w: HIT * 2, h: HIT * 2 });
       }
+      // When selected: draw a dashed guide line to the control point + a draggable handle circle
+      if (sel) {
+        const CP_R = 7;
+        state._relCtrlPtRects.set(rl.id, { x: cx - CP_R, y: cy - CP_R, w: CP_R * 2, h: CP_R * 2 });
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 4]);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo((fx + tx) / 2, (fy + ty) / 2);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#fff";
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(cx, cy, CP_R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        state._relCtrlPtRects.delete(rl.id);
+      }
     }
   }
 
@@ -2968,12 +2999,19 @@
     return null;
   }
 
+  function hitTestRelCtrlPt(state, mx, my) {
+    for (const [lineId, r] of (state._relCtrlPtRects || new Map())) {
+      if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+        return (state.relLines || []).find((rl) => rl.id === lineId) || null;
+      }
+    }
+    return null;
+  }
+
   function startRelLinePickMode(state) {
     if (!state.selectedNode) { showStatus(state, "Select a source node first"); return; }
-    state.relLinePickMode = true;
-    state.relLineSourceId = state.selectedNode.id;
-    state.canvas.style.cursor = "crosshair";
-    requestDraw(state);
+    // Open the manage panel — from there the user can add new or edit existing relationships
+    openRelManagePanel(state);
   }
 
   function cancelRelLinePickMode(state) {
@@ -3000,6 +3038,34 @@
         };
         return;
       }
+      // Check control-point handle drag (only visible when a line is selected)
+      const hitCtrlPt = hitTestRelCtrlPt(state, canvasCoords.x, canvasCoords.y);
+      if (hitCtrlPt) {
+        state.draggingRelLine = {
+          lineId: hitCtrlPt.id,
+          startMX: canvasCoords.x,
+          startMY: canvasCoords.y,
+          origCpOffsetX: hitCtrlPt.cpOffsetX || 0,
+          origCpOffsetY: hitCtrlPt.cpOffsetY || 0,
+          moved: false
+        };
+        state._relLineDragMoved = false;
+        return;
+      }
+      // Check dragging the line body itself to reshape it
+      const hitLineBody = hitTestRelLine(state, canvasCoords.x, canvasCoords.y);
+      if (hitLineBody) {
+        state.draggingRelLine = {
+          lineId: hitLineBody.id,
+          startMX: canvasCoords.x,
+          startMY: canvasCoords.y,
+          origCpOffsetX: hitLineBody.cpOffsetX || 0,
+          origCpOffsetY: hitLineBody.cpOffsetY || 0,
+          moved: false
+        };
+        state._relLineDragMoved = false;
+        return;
+      }
       beginInteraction(state, e.clientX, e.clientY, canvasCoords.x, canvasCoords.y);
     });
     state.canvas.addEventListener("mousemove", (e) => {
@@ -3011,6 +3077,22 @@
         if (rl) {
           rl.labelOffsetX = drl.origOffsetX + (canvasCoords.x - drl.startMX);
           rl.labelOffsetY = drl.origOffsetY + (canvasCoords.y - drl.startMY);
+          requestDraw(state);
+        }
+        return;
+      }
+      // Rel line control-point drag
+      if (state.draggingRelLine) {
+        const drl = state.draggingRelLine;
+        const rl = (state.relLines || []).find((r) => r.id === drl.lineId);
+        if (rl) {
+          rl.cpOffsetX = drl.origCpOffsetX + (canvasCoords.x - drl.startMX);
+          rl.cpOffsetY = drl.origCpOffsetY + (canvasCoords.y - drl.startMY);
+          if (Math.hypot(canvasCoords.x - drl.startMX, canvasCoords.y - drl.startMY) > 4) {
+            drl.moved = true;
+            state._relLineDragMoved = true;
+          }
+          state.canvas.style.cursor = "grabbing";
           requestDraw(state);
         }
         return;
@@ -3029,9 +3111,10 @@
           const hoverNode = findNodeAt(state, canvasCoords.x, canvasCoords.y);
           const overRelLabel = !hoverNode ? hitTestRelLabel(state, canvasCoords.x, canvasCoords.y) : null;
           const overRelLine = !hoverNode && !overRelLabel ? hitTestRelLine(state, canvasCoords.x, canvasCoords.y) : null;
+          const overCtrlPt = !hoverNode && !overRelLabel ? hitTestRelCtrlPt(state, canvasCoords.x, canvasCoords.y) : null;
           const overImg = hoverNode ? getClickedImageAtt(hoverNode, canvasCoords.x, canvasCoords.y) : null;
           const overFile = !overImg && hoverNode ? getClickedFileAtt(hoverNode, canvasCoords.x, canvasCoords.y) : null;
-          state.canvas.style.cursor = (overRelLabel || overRelLine) ? "pointer" : (overImg || overFile) ? (overImg ? "zoom-in" : "pointer") : "";
+          state.canvas.style.cursor = overCtrlPt ? "grab" : (overRelLabel || overRelLine) ? "pointer" : (overImg || overFile) ? (overImg ? "zoom-in" : "pointer") : "";
         }
       }
     });
@@ -3042,10 +3125,21 @@
         saveToHistory(state);
         return;
       }
+      if (state.draggingRelLine) {
+        const moved = state.draggingRelLine.moved;
+        state.draggingRelLine = null;
+        if (moved) {
+          saveToHistory(state);
+          state.lastDragEndAt = Date.now();
+        }
+        state.canvas.style.cursor = "";
+        return;
+      }
       completeDrag(state);
     });
     state.canvas.addEventListener("click", (e) => {
       if (Date.now() - state.lastDragEndAt < 150) return;
+      if (state._relLineDragMoved) { state._relLineDragMoved = false; return; }
       const { canvasCoords } = getCanvasRelativeCoords(state, e.clientX, e.clientY);
       // Pick mode: user clicked to select target node
       if (state.relLinePickMode) {
@@ -3453,8 +3547,8 @@
   }
 
   function bindControls(state) {
-    state.addBtn.addEventListener("click", () => addNode(state));
-    state.deleteBtn.addEventListener("click", () => deleteNode(state));
+    if (state.addBtn) state.addBtn.addEventListener("click", () => addNode(state));
+    if (state.deleteBtn) state.deleteBtn.addEventListener("click", () => deleteNode(state));
     state.centerBtn.addEventListener("click", () => centerMindmap(state, () => requestDraw(state)));
     state.undoBtn.addEventListener("click", () => undo(state));
     state.clearBtn.addEventListener("click", () => clearNodes(state));
@@ -4488,6 +4582,79 @@
 
   // ── Relationship panel ─────────────────────────────────────────────────────
 
+  function _getNodeLabel(state, id) {
+    const n = state.nodes.find((nd) => nd.id === id);
+    return n ? (n.text.length > 22 ? n.text.slice(0, 22) + "…" : n.text) : "Unknown";
+  }
+
+  function _showRelView(manageVisible) {
+    const mv = document.getElementById("relManageView");
+    const ev = document.getElementById("relEditView");
+    if (mv) mv.style.display = manageVisible ? "flex" : "none";
+    if (ev) ev.style.display = manageVisible ? "none" : "flex";
+  }
+
+  function openRelManagePanel(state) {
+    const panel = document.getElementById("relPanel");
+    if (!panel) return;
+    const node = state.selectedNode;
+    const titleEl = document.getElementById("relPanelTitle");
+    const listEl = document.getElementById("relManageList");
+    if (titleEl) titleEl.textContent = node ? `Relationships — ${node.text.length > 18 ? node.text.slice(0, 18) + "…" : node.text}` : "Relationships";
+    if (listEl) {
+      listEl.innerHTML = "";
+      const rels = (state.relLines || []).filter((r) => node && (r.fromId === node.id || r.toId === node.id));
+      if (rels.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "rel-manage-empty";
+        empty.textContent = "No relationships yet.";
+        listEl.appendChild(empty);
+      } else {
+        rels.forEach((rl) => {
+          const otherId = rl.fromId === (node && node.id) ? rl.toId : rl.fromId;
+          const otherLabel = _getNodeLabel(state, otherId);
+          const dirSymbol = rl.direction === "both" ? "↔" : (rl.fromId === (node && node.id) ? "→" : "←");
+          const item = document.createElement("div");
+          item.className = "rel-manage-item";
+          const dot = document.createElement("span");
+          dot.className = "rel-manage-item-dot";
+          dot.style.background = rl.color || "#6366f1";
+          const lbl = document.createElement("span");
+          lbl.className = "rel-manage-item-label";
+          lbl.textContent = rl.label ? rl.label : otherLabel;
+          lbl.title = rl.label ? `${rl.label} (${dirSymbol} ${otherLabel})` : `${dirSymbol} ${otherLabel}`;
+          const dir = document.createElement("span");
+          dir.className = "rel-manage-item-dir";
+          dir.textContent = dirSymbol;
+          const editBtn = document.createElement("button");
+          editBtn.type = "button";
+          editBtn.className = "rel-manage-item-edit";
+          editBtn.textContent = "Edit";
+          editBtn.addEventListener("click", () => { openRelPanel(state, { isNew: false, rl }); });
+          const delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "rel-manage-item-del";
+          delBtn.textContent = "Delete";
+          delBtn.addEventListener("click", () => {
+            state.relLines = (state.relLines || []).filter((r) => r.id !== rl.id);
+            if (state.selectedRelLineId === rl.id) state.selectedRelLineId = null;
+            saveToHistory(state);
+            requestDraw(state);
+            openRelManagePanel(state); // refresh the list
+          });
+          item.appendChild(dot);
+          item.appendChild(lbl);
+          item.appendChild(dir);
+          item.appendChild(editBtn);
+          item.appendChild(delBtn);
+          listEl.appendChild(item);
+        });
+      }
+    }
+    _showRelView(true);
+    panel.classList.add("visible");
+  }
+
   function openRelPanel(state, opts) {
     // opts: { isNew: true, fromId, toId } or { isNew: false, rl }
     const panel = document.getElementById("relPanel");
@@ -4521,6 +4688,7 @@
     }
     if (saveBtn) saveBtn.textContent = opts.isNew ? "Add" : "Save";
     if (deleteBtn) deleteBtn.classList.toggle("show", !opts.isNew);
+    _showRelView(false);
     panel.classList.add("visible");
     if (labelInput) labelInput.focus();
   }
@@ -4536,7 +4704,23 @@
     const saveBtn = document.getElementById("relSaveBtn");
     const deleteBtn = document.getElementById("relDeleteBtn");
     const labelInput = document.getElementById("relLabelInput");
+    const addNewBtn = document.getElementById("relAddNewBtn");
+    const backBtn = document.getElementById("relBackBtn");
     if (closeBtn) closeBtn.addEventListener("click", () => closeRelPanel(state));
+    // Back button: return to manage view
+    if (backBtn) backBtn.addEventListener("click", () => {
+      state._relPanelOpts = null;
+      openRelManagePanel(state);
+    });
+    // New Relationship button: start pick mode then close panel temporarily
+    if (addNewBtn) addNewBtn.addEventListener("click", () => {
+      if (!state.selectedNode) { showStatus(state, "Select a source node first"); return; }
+      closeRelPanel(state);
+      state.relLinePickMode = true;
+      state.relLineSourceId = state.selectedNode.id;
+      state.canvas.style.cursor = "crosshair";
+      requestDraw(state);
+    });
     // Direction buttons — toggle active on click
     document.querySelectorAll(".rel-dir-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -4559,11 +4743,13 @@
           label, color, direction,
           labelOffsetX: 0, labelOffsetY: 0
         });
+        closeRelPanel(state);
       } else {
         const rl = (state.relLines || []).find((r) => r.id === opts.rl.id);
         if (rl) { rl.label = label; rl.direction = direction; rl.color = color; }
+        // Return to manage view after saving edit
+        openRelManagePanel(state);
       }
-      closeRelPanel(state);
       state.selectedRelLineId = null;
       saveToHistory(state);
       requestDraw(state);
@@ -4573,7 +4759,8 @@
       if (!opts || opts.isNew) return;
       state.relLines = (state.relLines || []).filter((r) => r.id !== opts.rl.id);
       state.selectedRelLineId = null;
-      closeRelPanel(state);
+      // Return to manage view after delete
+      openRelManagePanel(state);
       saveToHistory(state);
       requestDraw(state);
     });
